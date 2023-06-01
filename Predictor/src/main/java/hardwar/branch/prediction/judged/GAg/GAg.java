@@ -5,8 +5,6 @@ import hardwar.branch.prediction.shared.devices.*;
 
 import java.util.Arrays;
 
-import static java.lang.Math.pow;
-
 public class GAg implements BranchPredictor {
     private final ShiftRegister BHR; // branch history register
     private final Cache<Bit[], Bit[]> PHT; // page history table
@@ -25,15 +23,15 @@ public class GAg implements BranchPredictor {
     public GAg(int BHRSize, int SCSize) {
         // TODO : complete the constructor
         // Initialize the BHR register with the given size and no default value
-
-        // Initialize the SC register
         this.BHR = new SIPORegister("BHR", BHRSize, null);
 
-        // Initialize the PHT with a size of 2^size and each entry having a saturating counter of size "SCSize
-        PHT = new PageHistoryTable((int) pow(2, BHRSize), SCSize);
+        // Initialize the PHT with a size of 2^size and each entry having a saturating counter of size "SCSize"
+        PHT = new PageHistoryTable(BHRSize, 2);
 
+        // Initialize the SC register
         SC = new SIPORegister("SC", SCSize, null);
     }
+
     /**
      * Predicts the result of a branch instruction based on the global branch history
      *
@@ -42,10 +40,14 @@ public class GAg implements BranchPredictor {
      */
     @Override
     public BranchResult predict(BranchInstruction branchInstruction) {
-        // TODO : complete Task 1
-        Bit[] history = BHR.read();
-        SC.load(PHT.setDefault(history, getDefaultBlock()));
-        return SC.read()[0] == Bit.ZERO ? BranchResult.NOT_TAKEN : BranchResult.TAKEN;
+        Bit[] NT = {Bit.ZERO, Bit.ZERO};
+        Bit[] address = BHR.read();
+        PHT.putIfAbsent(address, NT);
+        SC.load(PHT.get(address));
+        if (SC.read()[0] == Bit.ONE) 
+            return BranchResult.TAKEN;
+        else
+            return BranchResult.NOT_TAKEN;
     }
 
     /**
@@ -56,19 +58,14 @@ public class GAg implements BranchPredictor {
      */
     @Override
     public void update(BranchInstruction instruction, BranchResult actual) {
-        // TODO: complete Task 2
-        Bit[] counter = SC.read();
-
-        if (actual == BranchResult.TAKEN) {
-            if (Bit.toNumber(counter) < pow(2, counter.length) - 1)
-                CombinationalLogic.count(counter, true, CountMode.SATURATING);
-        } else {
-            if (Bit.toNumber(counter) > 0)
-                CombinationalLogic.count(counter, false, CountMode.SATURATING);
-        }
-
-        PHT.put(BHR.read(), counter);
-        BHR.insert(Bit.of(actual == BranchResult.TAKEN));
+        // TODO : complete Task 2
+        Bit[] stronglyNotTaken = {Bit.ZERO, Bit.ZERO};
+        Bit[] address = BHR.read();
+        PHT.putIfAbsent(address, stronglyNotTaken);
+        SC.load(PHT.get(address));
+        SC.load(CombinationalLogic.count(SC.read(), actual == BranchResult.TAKEN, CountMode.SATURATING));
+        PHT.put(address, SC.read());
+        BHR.insert(actual == BranchResult.TAKEN? Bit.ONE : Bit.ZERO);
     }
 
 
