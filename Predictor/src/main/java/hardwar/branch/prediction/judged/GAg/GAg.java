@@ -31,10 +31,8 @@ public class GAg implements BranchPredictor {
     
         this.BHR = new SIPORegister("BHR", BHRSize, null);
 
-        // Initialize the PHT with a size of 2^size and each entry having a saturating counter of size "SCSize"
-        if (PHT == null) {
-            PHT = new PageHistoryTable((int) pow(2, BHRSize), SCSize);
-        }
+        // Initialize the PHT with a size of 2^size and each entry having a saturating counter of size "SCSize
+        PHT = new PageHistoryTable((int) pow(2, BHRSize), SCSize);
 
     }
     /**
