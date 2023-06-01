@@ -101,4 +101,16 @@ public class GAs implements BranchPredictor {
      * @param branchAddress program counter
      * @return concatenated value of first K bits of branch address and BHR
      */
+    private Bit[] getCacheEntry(Bit[] branchAddress) {
+        // hash the branch address
+        Bit[] hashKSize = CombinationalLogic.hash(branchAddress, KSize, hashMode);
+    
+        // Concatenate the Hash bits with the BHR bits
+        Bit[] bhrBits = BHR.read();
+        Bit[] cacheEntry = new Bit[hashKSize.length + bhrBits.length];
+        System.arraycopy(hashKSize, 0, cacheEntry, 0, hashKSize.length);
+        System.arraycopy(bhrBits, 0, cacheEntry, hashKSize.length, bhrBits.length);
+    
+        return cacheEntry;
+    }
 }
