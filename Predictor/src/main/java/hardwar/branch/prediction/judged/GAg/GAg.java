@@ -21,10 +21,44 @@ public class GAg implements BranchPredictor {
      * @param SCSize  the size of the register which hold the saturating counter value and the cache block size
      */
     public GAg(int BHRSize, int SCSize) {
-        // TODO : complete the constructor
         // Initialize the BHR register with the given size and no default value
-        this.BHR = null;
+        this.BHR = new ShiftRegister() {
+            private Bit[] bits = new Bit[BHRSize];
+        
+            @Override
+            public Bit[] read() {
+                return bits;
+            }
+        
+            @Override
+            public void load(Bit[] bits) {
+                this.bits = bits;
+            }
+        
+            @Override
+            public void insert(Bit bit) {
+                for (int i = bits.length - 1; i > 0; i--) {
+                    bits[i] = bits[i - 1];
+                }
+                bits[0] = bit;
+            }
+        
+            @Override
+            public int getLength() {
+                return bits.length;
+            }
+        
+            @Override
+            public void clear() {
+                bits = new Bit[8];
+            }
 
+            @Override
+            public String monitor() {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'monitor'");
+            }
+        };
         // Initialize the PHT with a size of 2^size and each entry having a saturating counter of size "SCSize"
         PHT = null;
 
