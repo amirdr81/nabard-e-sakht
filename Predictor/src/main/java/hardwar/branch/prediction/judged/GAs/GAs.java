@@ -1,10 +1,11 @@
 package hardwar.branch.prediction.judged.GAs;
 
-
 import hardwar.branch.prediction.shared.*;
 import hardwar.branch.prediction.shared.devices.*;
 
 import java.util.Arrays;
+
+import static java.lang.Math.pow;
 
 public class GAs implements BranchPredictor {
 
@@ -28,20 +29,19 @@ public class GAs implements BranchPredictor {
      * @param branchInstructionSize the number of bits which is used for saving a branch instruction
      */
     public GAs(int BHRSize, int SCSize, int branchInstructionSize, int KSize, HashMode hashmode) {
-        // TODO: complete the constructor
-        this.branchInstructionSize = 0;
-        this.KSize = 0;
-        this.hashMode = HashMode.XOR;
+        this.branchInstructionSize = branchInstructionSize;
+        this.KSize= KSize;
+        this.hashMode = hashmode;
 
         // Initialize the BHR register with the given size and no default value
-        BHR = null;
+        this.BHR = new SIPORegister("BHR", BHRSize, null);
 
         // Initializing the PAPHT with K bit as PHT selector and 2^BHRSize row as each PHT entries
         // number and SCSize as block size
-        PSPHT = null;
+        PSPHT = new PerAddressPredictionHistoryTable(KSize, (int) pow(2, BHRSize), SCSize);
 
         // Initialize the saturating counter
-        SC = null;
+        SC = new SIPORegister("SC", SCSize, null);
     }
 
     /**
@@ -54,11 +54,17 @@ public class GAs implements BranchPredictor {
     @Override
     public BranchResult predict(BranchInstruction branchInstruction) {
         // TODO: complete Task 1
-        return BranchResult.NOT_TAKEN;
+        Bit[] branchAddress = branchInstruction.getAddress();
+        Bit[] cacheEntry = getCacheEntry(branchAddress);
+
+        Bit[] counter = PSPHT.get(cacheEntry);
+        SC.load(counter);
+
+        return SC.read()[0] == Bit.ZERO ? BranchResult.NOT_TAKEN : BranchResult.TAKEN;
     }
 
     /**
-     * Updates the value in the cache based on actual branch result
+     * Updates the value in the cache based on actual branchresult
      *
      * @param branchInstruction the branch instruction
      * @param actual            the actual result of branch (Taken or Not)
@@ -66,38 +72,33 @@ public class GAs implements BranchPredictor {
     @Override
     public void update(BranchInstruction branchInstruction, BranchResult actual) {
         // TODO: complete Task 2
+        Bit[] branchAddress = branchInstruction.getAddress();
+        Bit[] cacheEntry = getCacheEntry(branchAddress);
+
+        Bit[] counter = PSPHT.get(cacheEntry);
+        if (actual == BranchResult.TAKEN) {
+            if (Bit.toNumber(counter) < pow(2, SC.getLength()) - 1)
+                CombinationalLogic.count(counter, true, CountMode.SATURATING);
+        } else {
+            if (Bit.toNumber(counter) > 0)
+                CombinationalLogic.count(counter, false, CountMode.SATURATING);
+        }
+        PSPHT.put(cacheEntry, counter);
+        BHR.insert(Bit.of(actual == BranchResult.TAKEN));
     }
 
     /**
      * @return snapshot of caches and registers content
      */
     public String monitor() {
-        return "GAp predictor snapshot: \n" + BHR.monitor() + SC.monitor() + PSPHT.monitor();
+        return "GAs predictor snapshot: \n" + BHR.monitor() + SC.monitor() + PSPHT.monitor();
     }
 
 
     /**
-     * concat the PC and BHR to retrieve the desired address
+     * Concatenates the PC and BHR to retrieve the desired address
      *
      * @param branchAddress program counter
-     * @return concatenated value of first M bits of branch address and BHR
+     * @return concatenated value of first K bits of branch address and BHR
      */
-    private Bit[] getCacheEntry(Bit[] branchAddress) {
-        // hash the branch address
-        Bit[] hashKSize = CombinationalLogic.hash(branchAddress, KSize, hashMode);
-
-        // Concatenate the Hash bits with the BHR bits
-        Bit[] bhrBits = BHR.read();
-        Bit[] cacheEntry = new Bit[hashKSize.length + bhrBits.length];
-        System.arraycopy(hashKSize, 0, cacheEntry, 0, hashKSize.length);
-        System.arraycopy(bhrBits, 0, cacheEntry, hashKSize.length, bhrBits.length);
-
-        return cacheEntry;
-    }
-
-    private Bit[] getDefaultBlock() {
-        Bit[] defaultBlock = new Bit[SC.getLength()];
-        Arrays.fill(defaultBlock, Bit.ZERO);
-        return defaultBlock;
-    }
 }
